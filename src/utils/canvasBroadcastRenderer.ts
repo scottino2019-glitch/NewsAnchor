@@ -25,6 +25,18 @@ export class CanvasBroadcastRenderer {
     return this.canvas;
   }
 
+  private getImage(url?: string): HTMLImageElement | null {
+    if (!url) return null;
+    let img = this.pipImageCache.get(url);
+    if (!img) {
+      img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = url;
+      this.pipImageCache.set(url, img);
+    }
+    return img.complete && img.naturalWidth > 0 ? img : null;
+  }
+
   public start(
     getCurrentSlide: () => NewsSlide,
     getAvatarSettings: () => AvatarSettings,
@@ -37,16 +49,25 @@ export class CanvasBroadcastRenderer {
     this.creditsStartTime = null;
     this.lastShowCredits = false;
 
+    // Throttle canvas rendering to 30 FPS to reduce CPU load and match recorder capture stream
+    const targetFps = 30;
+    const interval = 1000 / targetFps;
+    let lastRenderTime = 0;
+
     const loop = (time: number) => {
       if (!this.isRunning) return;
 
-      const slide = getCurrentSlide();
-      const avatar = getAvatarSettings();
-      const broadcast = getBroadcastSettings();
-      const credits = getCreditsSettings();
-      const showCredits = getShowCredits();
+      const elapsed = time - lastRenderTime;
+      if (elapsed >= interval) {
+        lastRenderTime = time - (elapsed % interval);
+        const slide = getCurrentSlide();
+        const avatar = getAvatarSettings();
+        const broadcast = getBroadcastSettings();
+        const credits = getCreditsSettings();
+        const showCredits = getShowCredits();
 
-      this.renderFrame(time, slide, avatar, broadcast, credits, showCredits);
+        this.renderFrame(time, slide, avatar, broadcast, credits, showCredits);
+      }
 
       this.animId = requestAnimationFrame(loop);
     };
@@ -79,18 +100,11 @@ export class CanvasBroadcastRenderer {
 
     // 1. CLEAR & BACKGROUND
     if (slide.customBackgroundUrl) {
-      if (!this.pipImageCache.has(slide.customBackgroundUrl)) {
-        const bgImg = new Image();
-        bgImg.crossOrigin = 'anonymous';
-        bgImg.src = slide.customBackgroundUrl;
-        bgImg.onload = () => this.pipImageCache.set(slide.customBackgroundUrl!, bgImg);
-      } else {
-        const bgImg = this.pipImageCache.get(slide.customBackgroundUrl);
-        if (bgImg && bgImg.complete) {
-          ctx.drawImage(bgImg, 0, 0, w, h);
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-          ctx.fillRect(0, 0, w, h);
-        }
+      const bgImg = this.getImage(slide.customBackgroundUrl);
+      if (bgImg) {
+        ctx.drawImage(bgImg, 0, 0, w, h);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fillRect(0, 0, w, h);
       }
     } else if (slide.backgroundTheme === 'neutral_solid') {
       ctx.fillStyle = slide.customBackgroundColor || '#090d16';
@@ -279,15 +293,8 @@ export class CanvasBroadcastRenderer {
     ctx.clip();
 
     if (slide.pipImageUrl) {
-      if (!this.pipImageCache.has(slide.pipImageUrl)) {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = slide.pipImageUrl;
-        img.onload = () => this.pipImageCache.set(slide.pipImageUrl, img);
-      }
-
-      const img = this.pipImageCache.get(slide.pipImageUrl);
-      if (img && img.complete && img.naturalWidth > 0) {
+      const img = this.getImage(slide.pipImageUrl);
+      if (img) {
         // High quality object-cover scaling
         const imgAspect = img.naturalWidth / img.naturalHeight;
         const boxAspect = pipW / imageH;
@@ -413,16 +420,9 @@ export class CanvasBroadcastRenderer {
     const targetY = h - targetH + breathing * 0.4;
     const targetX = anchorX - targetW / 2;
 
-    // Cache image
-    if (!this.pipImageCache.has(activePhoto)) {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = activePhoto;
-      img.onload = () => this.pipImageCache.set(activePhoto, img);
-    }
-
-    const anchorImg = this.pipImageCache.get(activePhoto);
-    if (anchorImg && anchorImg.complete) {
+    // Anchor portrait
+    const anchorImg = this.getImage(activePhoto);
+    if (anchorImg) {
       // 1. Draw photorealistic presenter portrait
       ctx.save();
       ctx.beginPath();

@@ -22,6 +22,7 @@ interface BroadcastStageProps {
   onToggleCredits: (show: boolean) => void;
   onUpdateCreditsSettings?: (updated: Partial<CreditsSettings>) => void;
   onStartRecord: () => void;
+  onStopRecord?: () => void;
   onUploadPipImage?: (dataUrl: string) => void;
   isRecording: boolean;
   recordingSeconds: number;
@@ -42,6 +43,7 @@ export const BroadcastStage: React.FC<BroadcastStageProps> = ({
   onToggleCredits,
   onUpdateCreditsSettings,
   onStartRecord,
+  onStopRecord,
   onUploadPipImage,
   isRecording,
   recordingSeconds,
@@ -224,7 +226,7 @@ export const BroadcastStage: React.FC<BroadcastStageProps> = ({
           </button>
 
           <button
-            onClick={onStartRecord}
+            onClick={isRecording ? (onStopRecord || onStartRecord) : onStartRecord}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-md ${
               isRecording
                 ? 'bg-red-700 hover:bg-red-600 text-white ring-2 ring-red-400 animate-pulse'

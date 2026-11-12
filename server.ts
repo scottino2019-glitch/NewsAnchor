@@ -132,6 +132,7 @@ app.post('/api/tts/generate', async (req, res) => {
       const combined = Buffer.concat(audioBuffers);
       return res.json({
         audioData: combined.toString('base64'),
+        chunks: audioBuffers.map((b) => b.toString('base64')),
         mimeType: 'audio/mp3',
         source: 'google_tts',
         voice,

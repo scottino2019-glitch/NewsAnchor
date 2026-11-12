@@ -54,23 +54,10 @@ export class AudioLipSyncEngine {
       this.gainNode.gain.value = 1.0;
       this.destinationNode = this.audioCtx.createMediaStreamDestination();
 
-      // Direct, explicit connections from gainNode to speakers, recorder stream, and analyser:
+      // Clean single-path routing: gainNode feeds speakers, MediaStream recorder, and FFT analyser
       this.gainNode.connect(this.audioCtx.destination);
       this.gainNode.connect(this.destinationNode);
       this.gainNode.connect(this.analyser);
-
-      // Inaudible audio carrier to ensure MediaStreamAudioDestinationNode emits audio packets continuously
-      try {
-        const carrier = this.audioCtx.createOscillator();
-        const carrierGain = this.audioCtx.createGain();
-        carrierGain.gain.value = 0.00002; // inaudible keep-alive
-        carrier.frequency.value = 40; // low frequency keep-alive
-        carrier.connect(carrierGain);
-        carrierGain.connect(this.destinationNode);
-        carrier.start();
-      } catch (_e) {
-        // ignore
-      }
     }
 
     if (this.audioCtx.state === 'suspended') {
@@ -84,7 +71,72 @@ export class AudioLipSyncEngine {
     return this.destinationNode ? this.destinationNode.stream : null;
   }
 
-  // Play audio buffer at natural un-distorted speed
+  // Concatenate multiple decoded AudioBuffers into one seamless PCM AudioBuffer
+  public concatenateAudioBuffers(buffers: AudioBuffer[]): AudioBuffer | null {
+    if (buffers.length === 0) return null;
+    if (buffers.length === 1) return buffers[0];
+
+    const ctx = this.initAudioContext();
+    const sampleRate = buffers[0].sampleRate;
+    const numberOfChannels = Math.max(...buffers.map((b) => b.numberOfChannels));
+    const totalLength = buffers.reduce((acc, b) => acc + b.length, 0);
+
+    const merged = ctx.createBuffer(numberOfChannels, totalLength, sampleRate);
+
+    for (let channel = 0; channel < numberOfChannels; channel++) {
+      const channelData = merged.getChannelData(channel);
+      let offset = 0;
+      for (const b of buffers) {
+        if (channel < b.numberOfChannels) {
+          channelData.set(b.getChannelData(channel), offset);
+        } else {
+          // Fallback mono to stereo
+          channelData.set(b.getChannelData(0), offset);
+        }
+        offset += b.length;
+      }
+    }
+    return merged;
+  }
+
+  // Play audio chunks (each chunk is a standalone valid MP3 buffer, decoded cleanly)
+  public async playAudioChunks(
+    chunkBuffers: ArrayBuffer[],
+    onEnded?: () => void,
+    pitch: number = 1.0
+  ): Promise<number> {
+    const ctx = this.initAudioContext();
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+    this.stop();
+
+    // Decode each chunk individually to avoid corrupted MP3 frame headers
+    const decodedBuffers: AudioBuffer[] = [];
+    for (const chunk of chunkBuffers) {
+      try {
+        const decoded = await ctx.decodeAudioData(chunk.slice(0));
+        decodedBuffers.push(decoded);
+      } catch (e) {
+        console.warn('Error decoding individual audio chunk:', e);
+      }
+    }
+
+    if (decodedBuffers.length === 0) {
+      if (onEnded) onEnded();
+      return 0;
+    }
+
+    const mergedBuffer = this.concatenateAudioBuffers(decodedBuffers);
+    if (!mergedBuffer) {
+      if (onEnded) onEnded();
+      return 0;
+    }
+
+    return this.playDecodedAudioBuffer(mergedBuffer, onEnded, pitch);
+  }
+
+  // Play a single array buffer
   public async playAudioBuffer(
     arrayBuffer: ArrayBuffer,
     onEnded?: () => void,
@@ -96,23 +148,33 @@ export class AudioLipSyncEngine {
     }
     this.stop();
 
-    const decodedBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+    try {
+      const decodedBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+      return this.playDecodedAudioBuffer(decodedBuffer, onEnded, pitch);
+    } catch (e) {
+      console.warn('Error decoding audio buffer:', e);
+      if (onEnded) onEnded();
+      return 0;
+    }
+  }
+
+  // Common playback logic for a decoded AudioBuffer
+  private playDecodedAudioBuffer(
+    decodedBuffer: AudioBuffer,
+    onEnded?: () => void,
+    pitch: number = 1.0
+  ): number {
+    const ctx = this.initAudioContext();
     const source = ctx.createBufferSource();
     source.buffer = decodedBuffer;
 
-    // Use strictly natural playback rate unless user specifies mild adjustment
-    const safeRate = pitch >= 0.85 && pitch <= 1.15 ? pitch : 1.0;
+    // Natural 1.0 playback rate (mild tweak only if explicitly requested)
+    const safeRate = typeof pitch === 'number' && pitch >= 0.85 && pitch <= 1.15 ? pitch : 1.0;
     source.playbackRate.value = safeRate;
 
+    // Connect ONLY to gainNode (gainNode already routes cleanly to speakers, recorder stream, and analyser)
     if (this.gainNode) {
       source.connect(this.gainNode);
-    }
-    if (this.destinationNode) {
-      try {
-        source.connect(this.destinationNode);
-      } catch (_e) {
-        // ignore if already connected
-      }
     }
 
     this.currentSource = source;
@@ -169,6 +231,7 @@ export class AudioLipSyncEngine {
   public stop() {
     if (this.currentSource) {
       try {
+        this.currentSource.onended = null;
         this.currentSource.stop();
       } catch (e) {
         // ignore already stopped

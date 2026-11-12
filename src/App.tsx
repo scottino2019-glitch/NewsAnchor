@@ -484,6 +484,7 @@ export default function App() {
             setCreditsSettings((prev) => ({ ...prev, ...updated }))
           }
           onStartRecord={handleStartRecord}
+          onStopRecord={handleStopRecord}
           onUploadPipImage={(dataUrl) => {
             setSlides((prev) => {
               const next = [...prev];
@@ -568,6 +569,23 @@ export default function App() {
                 if (updated.character) {
                   const isMale = ['marco', 'kenji'].includes(updated.character);
                   setVoiceGender(isMale ? 'male' : 'female');
+                  if (isMale) {
+                    setSelectedVoice((prev) => {
+                      const lower = prev.toLowerCase();
+                      if (!lower.includes('marco') && !lower.includes('kenji') && !lower.includes('cosimo') && !lower.includes('luca') && !lower.includes('male') && !lower.includes('david')) {
+                        return 'studio-it-marco';
+                      }
+                      return prev;
+                    });
+                  } else {
+                    setSelectedVoice((prev) => {
+                      const lower = prev.toLowerCase();
+                      if (lower.includes('marco') || lower.includes('kenji')) {
+                        return 'studio-it-elena';
+                      }
+                      return prev;
+                    });
+                  }
                 }
               }}
             />

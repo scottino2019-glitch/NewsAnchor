@@ -1,5 +1,5 @@
 import { lipSyncEngine } from './audioLipSync';
-import { ALL_GOOGLE_AND_ANDROID_VOICES } from '../data/googleVoices';
+import { ALL_GOOGLE_AND_ANDROID_VOICES, STUDIO_CLOUD_VOICES } from '../data/googleVoices';
 
 export interface TTSResult {
   source: 'browser' | 'google_tts';
@@ -27,34 +27,43 @@ export class TTSService {
     }
 
     // Strictly natural pitch and rate defaults (1.0 = pure un-altered voice)
-    const targetPitch = typeof options?.pitch === 'number' && !isNaN(options.pitch) ? options.pitch : 1.0;
-    const targetRate = typeof options?.rate === 'number' && !isNaN(options.rate) ? options.rate : 1.0;
+    // Look for preset options for studio voices
+    const studioPreset = STUDIO_CLOUD_VOICES.find(
+      (gv) => gv.id.toLowerCase() === voiceName.toLowerCase() || gv.name.toLowerCase() === voiceName.toLowerCase()
+    );
 
-    // Check if user chose an explicit Google voice from catalog
-    const isGoogleApiVoice =
-      ALL_GOOGLE_AND_ANDROID_VOICES.some(
-        (gv) => gv.id.toLowerCase() === voiceName.toLowerCase() || gv.name.toLowerCase() === voiceName.toLowerCase()
-      ) ||
-      voiceName.includes('Neural2') ||
-      voiceName.includes('Wavenet') ||
-      voiceName.includes('Journey') ||
-      voiceName.includes('Standard-') ||
-      voiceName.startsWith('Google ');
+    // Strictly natural pitch and rate defaults (or custom studio anchor preset)
+    const targetPitch =
+      typeof options?.pitch === 'number' && !isNaN(options.pitch)
+        ? options.pitch
+        : studioPreset?.pitchDefault ?? (
+            voiceName.toLowerCase().includes('marco') ||
+            voiceName.toLowerCase().includes('kenji') ||
+            voiceName.toLowerCase().includes('maschile') ||
+            voiceName.toLowerCase().includes('male')
+              ? 0.85
+              : 1.05
+          );
 
-    // 1. If it's a browser / Android system voice installed on device, prefer browser synthesis
+    const targetRate =
+      typeof options?.rate === 'number' && !isNaN(options.rate)
+        ? options.rate
+        : studioPreset?.rateDefault ?? 1.0;
+
+    // 1. If it's a real voice installed on device/browser, ALWAYS play it directly with browser synthesis
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const voices = window.speechSynthesis.getVoices();
       const vTarget = voiceName.trim().toLowerCase();
 
-      // Find exact voice by name or voiceURI
+      // Find exact voice by name or voiceURI or loose match
       const matchedBrowserVoice = voices.find(
         (v) =>
           v.name.toLowerCase() === vTarget ||
-          (v.voiceURI && v.voiceURI.toLowerCase() === vTarget)
+          (v.voiceURI && v.voiceURI.toLowerCase() === vTarget) ||
+          v.name.toLowerCase().startsWith(vTarget)
       );
 
-      // If user selected an installed Android / Google / System voice, play it directly
-      if (matchedBrowserVoice && !isGoogleApiVoice) {
+      if (matchedBrowserVoice) {
         return this.speakWithBrowserSynth(
           cleanText,
           matchedBrowserVoice,
@@ -66,11 +75,11 @@ export class TTSService {
       }
     }
 
-    // 2. Otherwise use Google TTS audio generation via server endpoint
+    // 2. Otherwise use Studio Google TTS audio generation via server endpoint with distinct pitch
     return this.speakWithServerGoogleTTS(cleanText, voiceName, languageCode, onEnd, targetPitch, targetRate);
   }
 
-  // Implementation of natural browser / Android speech synthesis
+  // Implementation of natural browser / Android speech synthesis with watchdog timer
   private speakWithBrowserSynth(
     text: string,
     matchedVoice: SpeechSynthesisVoice,
@@ -81,6 +90,11 @@ export class TTSService {
   ): Promise<{ source: 'browser'; duration: number }> {
     return new Promise((resolve) => {
       this.stopSpeaking();
+
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.resume();
+      }
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.voice = matchedVoice;
@@ -100,9 +114,15 @@ export class TTSService {
       lipSyncEngine.startSyntheticSpeaking(text, estimatedDuration);
 
       let finished = false;
+      let watchdogTimer: number | null = null;
+
       const finishSpeaking = () => {
         if (finished) return;
         finished = true;
+        if (watchdogTimer !== null) {
+          window.clearTimeout(watchdogTimer);
+          watchdogTimer = null;
+        }
         this.activeUtterance = null;
         lipSyncEngine.stopSyntheticSpeaking();
         if (onEnd) onEnd();
@@ -110,6 +130,13 @@ export class TTSService {
 
       utterance.onend = finishSpeaking;
       utterance.onerror = finishSpeaking;
+
+      // Watchdog timer: Chrome speech synthesis sometimes drops onend event on longer text
+      watchdogTimer = window.setTimeout(() => {
+        if (!finished) {
+          finishSpeaking();
+        }
+      }, Math.max(3500, (estimatedDuration + 2.5) * 1000));
 
       window.speechSynthesis.speak(utterance);
       resolve({ source: 'browser', duration: estimatedDuration });
@@ -129,9 +156,11 @@ export class TTSService {
 
     try {
       const cacheKey = `${languageCode}_${voiceName}_${text}`;
-      let audioBase64 = this.audioCache.get(cacheKey);
+      let cached = this.audioCache.get(cacheKey);
+      let chunksData: string[] | null = null;
+      let audioBase64 = cached;
 
-      if (!audioBase64) {
+      if (!cached) {
         const response = await fetch('/api/tts/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -144,6 +173,9 @@ export class TTSService {
 
         if (response.ok) {
           const data = await response.json();
+          if (data.chunks && Array.isArray(data.chunks) && data.chunks.length > 0) {
+            chunksData = data.chunks;
+          }
           if (data.audioData) {
             audioBase64 = data.audioData;
             this.audioCache.set(cacheKey, audioBase64!);
@@ -151,6 +183,24 @@ export class TTSService {
         }
       }
 
+      // If we have separate MP3 chunks, decode each individually to guarantee pure, glitch-free audio
+      if (chunksData && chunksData.length > 0) {
+        const chunkArrayBuffers: ArrayBuffer[] = chunksData.map((b64: string) => {
+          const binary = window.atob(b64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          return bytes.buffer;
+        });
+
+        const duration = await lipSyncEngine.playAudioChunks(chunkArrayBuffers, onEnd, pitch);
+        if (duration > 0) {
+          return { source: 'google_tts', duration };
+        }
+      }
+
+      // Fallback to single combined buffer
       if (audioBase64) {
         const binaryString = window.atob(audioBase64);
         const bytes = new Uint8Array(binaryString.length);
@@ -158,9 +208,10 @@ export class TTSService {
           bytes[i] = binaryString.charCodeAt(i);
         }
 
-        // Play at pure un-altered natural pitch (default 1.0)
         const duration = await lipSyncEngine.playAudioBuffer(bytes.buffer, onEnd, pitch);
-        return { source: 'google_tts', duration };
+        if (duration > 0) {
+          return { source: 'google_tts', duration };
+        }
       }
     } catch (err) {
       console.warn('Server Google TTS fallback error, trying browser fallback:', err);
@@ -181,7 +232,7 @@ export class TTSService {
     return { source: 'google_tts', duration: 2.5 };
   }
 
-  // Quick audio test for selected voice with natural 1.0 pitch and speed
+  // Quick audio test for selected voice with natural pitch and speed
   public async previewVoice(
     voiceName: string,
     languageCode: string = 'it-IT',
@@ -190,20 +241,32 @@ export class TTSService {
   ) {
     this.stopSpeaking();
 
-    // Check if voice definition has custom sampleText
-    const knownGoogleVoice = ALL_GOOGLE_AND_ANDROID_VOICES.find(
-      (v) => v.id.toLowerCase() === voiceName.toLowerCase() || v.name.toLowerCase() === voiceName.toLowerCase()
+    const studioPreset = STUDIO_CLOUD_VOICES.find(
+      (sv) => sv.id.toLowerCase() === voiceName.toLowerCase() || sv.name.toLowerCase() === voiceName.toLowerCase()
     );
+
+    const isMale =
+      studioPreset?.gender === 'Maschile' ||
+      ['marco', 'kenji', 'maschile', 'male', 'uomo', 'cosimo', 'luca', 'david', 'mark', 'daniel', 'stefan', 'oliver', 'thomas'].some(
+        (m) => voiceName.toLowerCase().includes(m)
+      );
 
     const defaultText =
       sampleText ||
       (languageCode.startsWith('it')
-        ? 'Buonasera e benvenuti al telegiornale. Questa è la prova audio naturale per la voce selezionata.'
-        : 'Good evening and welcome to the news broadcast. This is the natural audio test for the selected voice.');
+        ? (isMale
+            ? 'Buonasera dal telegiornale. Sono la voce maschile per questa edizione informativa.'
+            : 'Buonasera dal telegiornale. Sono la voce femminile per questa edizione informativa.')
+        : (isMale
+            ? 'Good evening from the news desk. This is the male anchor voice for tonight broadcast.'
+            : 'Good evening from the news desk. This is the female anchor voice for tonight broadcast.'));
+
+    const effectivePitch = options?.pitch ?? studioPreset?.pitchDefault ?? (isMale ? 0.85 : 1.05);
+    const effectiveRate = options?.rate ?? studioPreset?.rateDefault ?? 1.0;
 
     await this.speakNews(defaultText, voiceName, languageCode, undefined, {
-      pitch: options?.pitch ?? 1.0,
-      rate: options?.rate ?? 1.0,
+      pitch: effectivePitch,
+      rate: effectiveRate,
     });
   }
 

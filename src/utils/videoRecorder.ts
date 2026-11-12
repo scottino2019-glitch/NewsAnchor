@@ -18,6 +18,7 @@ export class VideoRecorder {
     canvasElement: HTMLCanvasElement,
     onStateChange: (state: RecorderState) => void
   ): Promise<boolean> {
+    this.stopRecording();
     this.onStateChange = onStateChange;
     this.recordedChunks = [];
     this.seconds = 0;
@@ -42,7 +43,7 @@ export class VideoRecorder {
 
       const combinedStream = new MediaStream(combinedTracks);
 
-      // Determine best supported MIME type: VP8+Opus is the most universally playable
+      // Determine best supported MIME type: VP8+Opus is universally playable and lightweight
       let mimeType = 'video/webm;codecs=vp8,opus';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
         mimeType = 'video/webm;codecs=vp9,opus';
@@ -53,7 +54,7 @@ export class VideoRecorder {
 
       this.mediaRecorder = new MediaRecorder(combinedStream, {
         mimeType,
-        videoBitsPerSecond: 3500000, // 3.5 Mbps high quality broadcast
+        videoBitsPerSecond: 2500000, // 2.5 Mbps high definition broadcast quality
         audioBitsPerSecond: 128000,
       });
 
