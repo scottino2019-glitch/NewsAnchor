@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = parseInt(process.env.PORT || '3000', 10);
+const PORT = 3000;
 
 app.use(express.json({ limit: '20mb' }));
 
@@ -53,14 +53,24 @@ async function translateWithGoogle(input: string | string[], targetLangCode: str
   }
 }
 
+import { ALL_GOOGLE_AND_ANDROID_VOICES } from './src/data/googleVoices.ts';
+
 // Health check endpoint
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     services: {
-      speechSynthesis: 'Google Neural TTS Engine',
+      speechSynthesis: 'Google Neural & Android TTS Engine',
       translator: 'Google Translate Engine (google-translate-api-x)',
     },
+  });
+});
+
+// Complete Google Cloud & Android API voices catalog
+app.get('/api/tts/voices', (_req, res) => {
+  res.json({
+    total: ALL_GOOGLE_AND_ANDROID_VOICES.length,
+    voices: ALL_GOOGLE_AND_ANDROID_VOICES,
   });
 });
 
@@ -310,7 +320,11 @@ app.post('/api/news/generate', async (req, res) => {
 const startServer = async () => {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true, allowedHosts: true },
+      server: {
+        middlewareMode: true,
+        allowedHosts: true,
+        hmr: process.env.DISABLE_HMR === 'true' ? false : undefined,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -321,8 +335,8 @@ const startServer = async () => {
     });
   }
 
-  app.listen(port, '0.0.0.0', () => {
-    console.log(`News Studio server running at http://0.0.0.0:${port}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`News Studio server running at http://0.0.0.0:${PORT}`);
   });
 };
 

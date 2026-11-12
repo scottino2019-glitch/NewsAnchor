@@ -84,7 +84,7 @@ export default function App() {
   );
   const [voiceGender, setVoiceGender] = useState<'female' | 'male'>('female');
   const [selectedVoice, setSelectedVoice] = useState<string>('Google italiano');
-  const [voicePitch, setVoicePitch] = useState<number>(1.18);
+  const [voicePitch, setVoicePitch] = useState<number>(1.0);
   const [voiceRate, setVoiceRate] = useState<number>(1.0);
   const [speechStyle, setSpeechStyle] = useState<string>(
     'Clear, professional television news anchor broadcast tone'
@@ -568,7 +568,6 @@ export default function App() {
                 if (updated.character) {
                   const isMale = ['marco', 'kenji'].includes(updated.character);
                   setVoiceGender(isMale ? 'male' : 'female');
-                  setVoicePitch(isMale ? 0.78 : 1.18);
                 }
               }}
             />
@@ -587,7 +586,6 @@ export default function App() {
               voiceGender={voiceGender}
               onChangeVoiceGender={(gender) => {
                 setVoiceGender(gender);
-                setVoicePitch(gender === 'male' ? 0.78 : 1.18);
               }}
               speechStyle={speechStyle}
               onSelectSpeechStyle={(st) => setSpeechStyle(st)}
