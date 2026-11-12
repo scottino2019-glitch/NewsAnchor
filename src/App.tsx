@@ -133,30 +133,44 @@ export default function App() {
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
 
+  const handleToggleCredits = (show: boolean) => {
+    setShowCredits(show);
+    showCreditsRef.current = show;
+  };
+
   // Handle Play / Stop Broadcast
   const handleTogglePlay = async () => {
     if (isPlaying) {
       ttsService.stopSpeaking();
       setIsPlaying(false);
+      isPlayingRef.current = false;
       return;
     }
 
     setShowCredits(false);
+    showCreditsRef.current = false;
     setIsPlaying(true);
+    isPlayingRef.current = true;
     playSlideSequence(activeSlideIndex);
   };
 
   // Play slide and sequence to next
   const playSlideSequence = async (index: number) => {
     if (index >= slidesRef.current.length) {
-      // Finished all slides -> trigger closing credits
+      // Finished all slides -> trigger closing credits if enabled
       setIsPlaying(false);
-      setShowCredits(true);
+      isPlayingRef.current = false;
+      if (creditsRef.current.enabled !== false) {
+        setShowCredits(true);
+        showCreditsRef.current = true;
+      }
       return;
     }
 
     setActiveSlideIndex(index);
     const current = slidesRef.current[index];
+    activeSlideRef.current = current;
+    activeIndexRef.current = index;
 
     await ttsService.speakNews(
       current.script,
@@ -171,7 +185,8 @@ export default function App() {
             }
           }, 800);
         }
-      }
+      },
+      speechStyle
     );
   };
 
@@ -179,13 +194,16 @@ export default function App() {
   const handlePreviewSlideSpeech = async (slide: NewsSlide) => {
     ttsService.stopSpeaking();
     setIsPlaying(true);
+    isPlayingRef.current = true;
     await ttsService.speakNews(
       slide.script,
       selectedVoice,
       selectedLanguage.code,
       () => {
         setIsPlaying(false);
-      }
+        isPlayingRef.current = false;
+      },
+      speechStyle
     );
   };
 
@@ -195,13 +213,14 @@ export default function App() {
 
     // Stop previous audio to start cleanly with the recording
     ttsService.stopSpeaking();
-    setShowCredits(false);
 
     // Explicitly resume Web Audio context on user gesture
     const ctx = lipSyncEngine.initAudioContext();
     if (ctx.state === 'suspended') {
       await ctx.resume();
     }
+
+    const wasShowingCredits = showCreditsRef.current;
 
     // Start canvas renderer loop
     canvasBroadcastRenderer.start(
@@ -218,9 +237,12 @@ export default function App() {
     });
 
     if (success) {
-      // Auto-start slide speech simultaneously with video recording
-      setIsPlaying(true);
-      playSlideSequence(activeSlideIndex);
+      if (!wasShowingCredits) {
+        // Auto-start slide speech simultaneously with video recording
+        setIsPlaying(true);
+        isPlayingRef.current = true;
+        playSlideSequence(activeSlideIndex);
+      }
     }
   };
 
@@ -229,6 +251,7 @@ export default function App() {
     canvasBroadcastRenderer.stop();
     ttsService.stopSpeaking();
     setIsPlaying(false);
+    isPlayingRef.current = false;
   };
 
   // Translation across all slides with Google Translate
@@ -445,7 +468,7 @@ export default function App() {
           broadcastSettings={broadcastSettings}
           creditsSettings={creditsSettings}
           showCredits={showCredits}
-          onToggleCredits={(show) => setShowCredits(show)}
+          onToggleCredits={handleToggleCredits}
           onUpdateCreditsSettings={(updated) =>
             setCreditsSettings((prev) => ({ ...prev, ...updated }))
           }
@@ -458,6 +481,8 @@ export default function App() {
                 showPip: true,
                 pipImageUrl: dataUrl,
               };
+              slidesRef.current = next;
+              activeSlideRef.current = next[activeSlideIndex];
               return next;
             });
           }}
@@ -506,6 +531,10 @@ export default function App() {
               onUpdateSlide={(idx, updated) => {
                 const next = [...slides];
                 next[idx] = { ...next[idx], ...updated };
+                slidesRef.current = next;
+                if (idx === activeSlideIndex) {
+                  activeSlideRef.current = next[idx];
+                }
                 setSlides(next);
               }}
               onAddSlide={handleAddSlide}
@@ -557,7 +586,7 @@ export default function App() {
               onChange={(updated) =>
                 setCreditsSettings((prev) => ({ ...prev, ...updated }))
               }
-              onPreviewCredits={() => setShowCredits(true)}
+              onPreviewCredits={() => handleToggleCredits(true)}
             />
           )}
         </div>
@@ -581,6 +610,7 @@ export default function App() {
         onStartRecord={handleStartRecord}
         onStopRecord={handleStopRecord}
         channelName={broadcastSettings.channelName}
+        showCredits={showCredits}
       />
     </div>
   );

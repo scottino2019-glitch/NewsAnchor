@@ -4,11 +4,23 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { translate } from 'google-translate-api-x';
+import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const ai = process.env.GEMINI_API_KEY
+  ? new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    })
+  : null;
 
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -64,16 +76,63 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// Google Neural TTS speech generation endpoint
+// Google & Gemini Neural TTS speech generation endpoint
 app.post('/api/tts/generate', async (req, res) => {
   try {
-    const { text, language = 'it-IT' } = req.body;
+    const { text, language = 'it-IT', voice = 'Kore', speechStyle } = req.body;
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: 'Text is required for TTS' });
     }
 
-    const langCode = getTtsLangCode(language);
     const cleanText = text.replace(/[\n\r]+/g, ' ').trim();
+
+    // 1. If Gemini API Key is available, use Gemini 3.8 Flash Lite TTS
+    if (ai) {
+      try {
+        const supportedGeminiVoices = ['Kore', 'Puck', 'Charon', 'Fenrir', 'Zephyr', 'Aoede', 'Leda', 'Orpheus'];
+        const chosenVoice = supportedGeminiVoices.includes(voice) ? voice : 'Kore';
+
+        const geminiRes = await ai.models.generateContent({
+          model: 'gemini-3.8-flash-lite-tts',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: cleanText,
+                  speechMetadata: {
+                    style: speechStyle || 'Clear, professional news anchor broadcast tone',
+                  },
+                },
+              ],
+            },
+          ],
+          config: {
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: chosenVoice },
+              },
+            },
+          },
+        });
+
+        const base64Audio = geminiRes.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (base64Audio) {
+          return res.json({
+            audioData: base64Audio,
+            mimeType: 'audio/wav',
+            source: 'gemini_tts',
+            voice: chosenVoice,
+          });
+        }
+      } catch (geminiErr: any) {
+        console.warn('Gemini TTS fallback:', geminiErr.message);
+      }
+    }
+
+    // 2. Google Translate Neural TTS Engine fallback
+    const langCode = getTtsLangCode(language);
     const rawSentences = cleanText.match(/[^.!?]+[.!?]*/g) || [cleanText];
     const chunks: string[] = [];
 
@@ -83,7 +142,6 @@ app.post('/api/tts/generate', async (req, res) => {
       if (trimmed.length <= 160) {
         chunks.push(trimmed);
       } else {
-        // Break long sentences by commas or word boundaries
         const words = trimmed.split(' ');
         let current = '';
         for (const w of words) {
@@ -104,7 +162,8 @@ app.post('/api/tts/generate', async (req, res) => {
         const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${langCode}&client=tw-ob`;
         const response = await fetch(url, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           },
         });
         if (response.ok) {
@@ -122,6 +181,7 @@ app.post('/api/tts/generate', async (req, res) => {
         audioData: combined.toString('base64'),
         mimeType: 'audio/mp3',
         source: 'google_tts',
+        voice,
       });
     }
 
@@ -129,6 +189,7 @@ app.post('/api/tts/generate', async (req, res) => {
       fallback: true,
       source: 'browser_fallback',
       message: 'Using client Web Speech synthesis engine',
+      voice,
     });
   } catch (error: any) {
     res.json({

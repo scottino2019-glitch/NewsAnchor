@@ -14,12 +14,24 @@ export type BackgroundTheme =
 
 export type LanguageRegion = 'occidentale' | 'orientale' | 'slava';
 
+export interface GoogleVoiceOption {
+  id: string;
+  name: string;
+  gender: 'Femminile' | 'Maschile' | 'Neutro / Bilanciato';
+  category: 'neural' | 'gemini' | 'browser' | 'studio';
+  timbre: string;
+  desc: string;
+  recommendedFor?: string;
+  pitch?: number;
+  rate?: number;
+}
+
 export interface LanguageOption {
   code: string;
   name: string;
   region: LanguageRegion;
   flag: string;
-  googleVoice: 'Kore' | 'Puck' | 'Charon' | 'Fenrir' | 'Zephyr';
+  googleVoice: string;
   nativeName: string;
   defaultTopic: string;
 }

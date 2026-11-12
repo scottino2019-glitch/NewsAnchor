@@ -52,11 +52,32 @@ export const CreditsEditorPanel: React.FC<CreditsEditorPanelProps> = ({
 
         <button
           onClick={onPreviewCredits}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors shadow-md"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors shadow-md cursor-pointer"
         >
           <Eye className="w-3.5 h-3.5" />
           <span>Vedi Scorrimento a Schermo</span>
         </button>
+      </div>
+
+      {/* Enable Toggle Switch */}
+      <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+        <div>
+          <div className="text-xs font-bold text-white">
+            Includi Titoli di Coda al Termine del Notiziario
+          </div>
+          <div className="text-[11px] text-slate-400">
+            Se attivo, dopo l'ultima notizia scorreranno automaticamente i titoli di coda (sia in onda che nel video registrato).
+          </div>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={settings.enabled !== false}
+            onChange={(e) => onChange({ enabled: e.target.checked })}
+            className="sr-only peer"
+          />
+          <div className="w-11 h-6 bg-slate-800 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600" />
+        </label>
       </div>
 
       {/* Header & Subheader */}

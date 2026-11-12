@@ -10,6 +10,7 @@ interface VideoExportModalProps {
   onStartRecord: () => void;
   onStopRecord: () => void;
   channelName: string;
+  showCredits?: boolean;
 }
 
 export const VideoExportModal: React.FC<VideoExportModalProps> = ({
@@ -21,6 +22,7 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
   onStartRecord,
   onStopRecord,
   channelName,
+  showCredits = false,
 }) => {
   if (!isOpen) return null;
 
@@ -43,13 +45,13 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                 Esporta Video Notiziario
               </h3>
               <p className="text-xs text-slate-400">
-                Registra in tempo reale con avatar parlante, lip-sync e audio sincronizzato
+                Registra in tempo reale con avatar parlante, lip-sync, grafiche e titoli di coda
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -69,12 +71,25 @@ export const VideoExportModal: React.FC<VideoExportModalProps> = ({
                 <div className="font-mono text-2xl font-black text-red-500">
                   {formatTime(recordingSeconds)}
                 </div>
-                <p className="text-xs text-slate-300 font-semibold mt-1">
-                  Registrazione in corso dello schermo e dell'audio vocale...
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  Fai scorrere le notizie per includere l'intero telegiornale.
-                </p>
+                {showCredits ? (
+                  <div className="mt-2 px-3 py-1.5 rounded-lg bg-indigo-950/80 border border-indigo-700/50">
+                    <p className="text-xs text-indigo-300 font-bold">
+                      🎬 Titoli di coda in scorrimento nel video...
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Premi "Ferma Registrazione" quando i crediti sono completati.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs text-slate-300 font-semibold mt-1">
+                      Registrazione in corso dello studio e dell'audio vocale...
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Al termine delle notizie scorreranno automaticamente i titoli di coda.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           ) : downloadUrl ? (
