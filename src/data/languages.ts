@@ -1,0 +1,150 @@
+import { LanguageOption, LanguageRegion } from '../types/news';
+
+export const SUPPORTED_LANGUAGES: LanguageOption[] = [
+  // Occidentale (Western)
+  {
+    code: 'it-IT',
+    name: 'Italiano',
+    nativeName: 'Italiano',
+    region: 'occidentale',
+    flag: '🇮🇹',
+    googleVoice: 'Kore',
+    defaultTopic: 'Ultime notizie del giorno, innovazione tecnologica ed economia globale',
+  },
+  {
+    code: 'en-US',
+    name: 'Inglese (USA)',
+    nativeName: 'English (US)',
+    region: 'occidentale',
+    flag: '🇺🇸',
+    googleVoice: 'Puck',
+    defaultTopic: 'Global tech breakthrough, financial markets surge, and aerospace discoveries',
+  },
+  {
+    code: 'en-GB',
+    name: 'Inglese (UK)',
+    nativeName: 'English (UK)',
+    region: 'occidentale',
+    flag: '🇬🇧',
+    googleVoice: 'Fenrir',
+    defaultTopic: 'International diplomacy, green energy developments, and scientific updates',
+  },
+  {
+    code: 'fr-FR',
+    name: 'Francese',
+    nativeName: 'Français',
+    region: 'occidentale',
+    flag: '🇫🇷',
+    googleVoice: 'Kore',
+    defaultTopic: 'Actualités internationales, sommet européen et avancées technologiques',
+  },
+  {
+    code: 'es-ES',
+    name: 'Spagnolo',
+    nativeName: 'Español',
+    region: 'occidentale',
+    flag: '🇪🇸',
+    googleVoice: 'Zephyr',
+    defaultTopic: 'Última hora en el mundo, avances científicos y mercados financieros',
+  },
+  {
+    code: 'de-DE',
+    name: 'Tedesco',
+    nativeName: 'Deutsch',
+    region: 'occidentale',
+    flag: '🇩🇪',
+    googleVoice: 'Charon',
+    defaultTopic: 'Aktuelle Weltnachrichten, Industrie 4.0 und wissenschaftliche Entdeckungen',
+  },
+
+  // Orientale (Eastern)
+  {
+    code: 'ja-JP',
+    name: 'Giapponese',
+    nativeName: '日本語',
+    region: 'orientale',
+    flag: '🇯🇵',
+    googleVoice: 'Kore',
+    defaultTopic: '日本の最新ニュース、次世代人工知能、宇宙開発プロジェクト',
+  },
+  {
+    code: 'zh-CN',
+    name: 'Cinese Mandarino',
+    nativeName: '中文 (简体)',
+    region: 'orientale',
+    flag: '🇨🇳',
+    googleVoice: 'Kore',
+    defaultTopic: '全球科技前沿、国际经贸论坛与航天工程新突破',
+  },
+  {
+    code: 'ko-KR',
+    name: 'Coreano',
+    nativeName: '한국어',
+    region: 'orientale',
+    flag: '🇰🇷',
+    googleVoice: 'Kore',
+    defaultTopic: '글로벌 경제 동향, 차세대 반도체 기술 혁신과 우주 탐사',
+  },
+  {
+    code: 'hi-IN',
+    name: 'Hindi',
+    nativeName: 'हिन्दी',
+    region: 'orientale',
+    flag: '🇮🇳',
+    googleVoice: 'Puck',
+    defaultTopic: 'विश्व समाचार, डिजिटल क्रांति, वैज्ञानिक अनुसंधान और अर्थव्यवस्था',
+  },
+
+  // Slava (Slavic)
+  {
+    code: 'ru-RU',
+    name: 'Russo',
+    nativeName: 'Русский',
+    region: 'slava',
+    flag: '🇷🇺',
+    googleVoice: 'Charon',
+    defaultTopic: 'Главные мировые новости, научно-технический прогресс и глобальная экономика',
+  },
+  {
+    code: 'pl-PL',
+    name: 'Polacco',
+    nativeName: 'Polski',
+    region: 'slava',
+    flag: '🇵🇱',
+    googleVoice: 'Fenrir',
+    defaultTopic: 'Wiadomości ze świata, innowacje technologiczne oraz transformacja energetyczna',
+  },
+  {
+    code: 'uk-UA',
+    name: 'Ucraino',
+    nativeName: 'Українська',
+    region: 'slava',
+    flag: '🇺🇦',
+    googleVoice: 'Kore',
+    defaultTopic: 'Головні новини дня, наукові дослідження, технології та міжнародна співпраця',
+  },
+  {
+    code: 'cs-CZ',
+    name: 'Ceco',
+    nativeName: 'Čeština',
+    region: 'slava',
+    flag: '🇨🇿',
+    googleVoice: 'Puck',
+    defaultTopic: 'Mimořádné zpravodajství, technologické objevy a ekonomický přehled',
+  },
+];
+
+export const REGION_LABELS: Record<LanguageRegion, { label: string; description: string }> = {
+  occidentale: {
+    label: 'Occidentale (Western)',
+    description: 'Italiano, English, Français, Español, Deutsch',
+  },
+  orientale: {
+    label: 'Orientale (Eastern)',
+    description: '日本語, 中文, 한국어, हिन्दी',
+  },
+  slava: {
+    label: 'Slava (Slavic)',
+    description: 'Русский, Polski, Українська, Čeština',
+  },
+};
