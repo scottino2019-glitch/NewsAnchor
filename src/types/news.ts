@@ -18,7 +18,7 @@ export interface GoogleVoiceOption {
   id: string;
   name: string;
   gender: 'Femminile' | 'Maschile' | 'Neutro / Bilanciato';
-  category: 'neural' | 'gemini' | 'browser' | 'studio';
+  category: 'neural' | 'google' | 'browser' | 'studio';
   timbre: string;
   desc: string;
   recommendedFor?: string;

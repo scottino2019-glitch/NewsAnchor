@@ -2,5 +2,5 @@
   "name": "StudioTG - Creatore Notiziario Video AI",
   "description": "Studio di produzione video stile telegiornale con avatar parlante fotorealistico, sincronizzazione labiale audio-visema dinamica, sintesi vocale Google TTS multilingue, Picture-in-Picture, slide notizie e titoli di coda.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }

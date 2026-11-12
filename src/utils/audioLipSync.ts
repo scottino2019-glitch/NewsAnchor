@@ -84,10 +84,11 @@ export class AudioLipSyncEngine {
     return this.destinationNode ? this.destinationNode.stream : null;
   }
 
-  // Play audio buffer (e.g. from Gemini TTS WAV)
+  // Play audio buffer at natural un-distorted speed
   public async playAudioBuffer(
     arrayBuffer: ArrayBuffer,
-    onEnded?: () => void
+    onEnded?: () => void,
+    pitch: number = 1.0
   ): Promise<number> {
     const ctx = this.initAudioContext();
     if (ctx.state === 'suspended') {
@@ -98,6 +99,10 @@ export class AudioLipSyncEngine {
     const decodedBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
     const source = ctx.createBufferSource();
     source.buffer = decodedBuffer;
+
+    // Use strictly natural playback rate unless user specifies mild adjustment
+    const safeRate = pitch >= 0.85 && pitch <= 1.15 ? pitch : 1.0;
+    source.playbackRate.value = safeRate;
 
     if (this.gainNode) {
       source.connect(this.gainNode);
@@ -120,7 +125,7 @@ export class AudioLipSyncEngine {
     };
 
     source.start(0);
-    return decodedBuffer.duration;
+    return decodedBuffer.duration / safeRate;
   }
 
   // Fallback procedural speaking for Web Speech API

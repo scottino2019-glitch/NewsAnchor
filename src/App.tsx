@@ -79,11 +79,13 @@ export default function App() {
     fontSize: 'extra_large',
   });
 
-  // State: Language & Google TTS
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageOption>(
     SUPPORTED_LANGUAGES[0] // Italiano
   );
-  const [selectedVoice, setSelectedVoice] = useState<string>('Kore');
+  const [voiceGender, setVoiceGender] = useState<'female' | 'male'>('female');
+  const [selectedVoice, setSelectedVoice] = useState<string>('Google italiano');
+  const [voicePitch, setVoicePitch] = useState<number>(1.18);
+  const [voiceRate, setVoiceRate] = useState<number>(1.0);
   const [speechStyle, setSpeechStyle] = useState<string>(
     'Clear, professional television news anchor broadcast tone'
   );
@@ -133,6 +135,15 @@ export default function App() {
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
 
+  const selectedVoiceRef = useRef(selectedVoice);
+  selectedVoiceRef.current = selectedVoice;
+
+  const voicePitchRef = useRef(voicePitch);
+  voicePitchRef.current = voicePitch;
+
+  const voiceRateRef = useRef(voiceRate);
+  voiceRateRef.current = voiceRate;
+
   const handleToggleCredits = (show: boolean) => {
     setShowCredits(show);
     showCreditsRef.current = show;
@@ -174,7 +185,7 @@ export default function App() {
 
     await ttsService.speakNews(
       current.script,
-      selectedVoice,
+      selectedVoiceRef.current,
       selectedLanguage.code,
       () => {
         // When speech finishes, proceed to next slide if still in play mode
@@ -186,7 +197,7 @@ export default function App() {
           }, 800);
         }
       },
-      speechStyle
+      { pitch: voicePitchRef.current, rate: voiceRateRef.current }
     );
   };
 
@@ -197,13 +208,13 @@ export default function App() {
     isPlayingRef.current = true;
     await ttsService.speakNews(
       slide.script,
-      selectedVoice,
+      selectedVoiceRef.current,
       selectedLanguage.code,
       () => {
         setIsPlaying(false);
         isPlayingRef.current = false;
       },
-      speechStyle
+      { pitch: voicePitchRef.current, rate: voiceRateRef.current }
     );
   };
 
@@ -552,20 +563,38 @@ export default function App() {
           {activeTab === 'avatar' && (
             <AvatarSettingsPanel
               settings={avatarSettings}
-              onChange={(updated) =>
-                setAvatarSettings((prev) => ({ ...prev, ...updated }))
-              }
+              onChange={(updated) => {
+                setAvatarSettings((prev) => ({ ...prev, ...updated }));
+                if (updated.character) {
+                  const isMale = ['marco', 'kenji'].includes(updated.character);
+                  setVoiceGender(isMale ? 'male' : 'female');
+                  setVoicePitch(isMale ? 0.78 : 1.18);
+                }
+              }}
             />
           )}
 
           {activeTab === 'speech' && (
             <SpeechSettingsPanel
               selectedLanguage={selectedLanguage}
-              onSelectLanguage={(lang) => setSelectedLanguage(lang)}
+              onSelectLanguage={(lang) => {
+                setSelectedLanguage(lang);
+              }}
               selectedVoice={selectedVoice}
-              onSelectVoice={(v) => setSelectedVoice(v)}
+              onSelectVoice={(v) => {
+                setSelectedVoice(v);
+              }}
+              voiceGender={voiceGender}
+              onChangeVoiceGender={(gender) => {
+                setVoiceGender(gender);
+                setVoicePitch(gender === 'male' ? 0.78 : 1.18);
+              }}
               speechStyle={speechStyle}
               onSelectSpeechStyle={(st) => setSpeechStyle(st)}
+              voicePitch={voicePitch}
+              onChangeVoicePitch={setVoicePitch}
+              voiceRate={voiceRate}
+              onChangeVoiceRate={setVoiceRate}
               onTranslateAllSlides={handleTranslateAllSlides}
               isTranslating={isTranslating}
             />
